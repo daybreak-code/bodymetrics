@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../stores/authStore';
+import { supabase } from '../lib/supabase';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { login } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,14 +15,43 @@ const LoginPage = () => {
     setError('');
 
     try {
-      const success = await login(email, password);
-      if (success) {
+      const { error, data } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        setError(error.message);
+      } else if (data.user) {
         navigate('/dashboard');
       } else {
-        setError('Invalid email or password');
+        setError('Login failed: No user data returned');
       }
     } catch (err) {
-      setError('An error occurred during login');
+      setError((err as Error).message || 'An unexpected error occurred during login');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOAuthLogin = async (provider: 'github' | 'google') => {
+    setLoading(true);
+    setError('');
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: provider,
+        options: {
+          redirectTo: window.location.origin + '/dashboard',
+        },
+      });
+
+      if (error) {
+        setError(error.message);
+        console.error('Error with OAuth login:', error.message);
+      }
+    } catch (err) {
+      setError((err as Error).message || 'An unexpected error occurred during OAuth login');
       console.error(err);
     } finally {
       setLoading(false);
@@ -101,6 +129,27 @@ const LoginPage = () => {
           <Link to="/register" className="block text-center mt-2 w-full py-3 rounded-lg border border-neutral-300 text-neutral-800 font-medium hover:bg-neutral-100 transition-colors">
             Register
           </Link>
+
+          <div className="mt-6 space-y-3">
+            <button
+              type="button"
+              onClick={() => handleOAuthLogin('github')}
+              disabled={loading}
+              className="w-full flex items-center justify-center btn-outline py-3 border border-neutral-300 text-neutral-800 font-medium rounded-lg hover:bg-neutral-100 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              <img src="/github-icon.svg" alt="GitHub" className="h-5 w-5 mr-2" /> 
+              {loading ? 'Signing in with GitHub...' : 'Sign in with GitHub'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOAuthLogin('google')}
+              disabled={loading}
+              className="w-full flex items-center justify-center btn-outline py-3 border border-neutral-300 text-neutral-800 font-medium rounded-lg hover:bg-neutral-100 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              <img src="/google-icon.svg" alt="Google" className="h-5 w-5 mr-2" /> 
+              {loading ? 'Signing in with Google...' : 'Sign in with Google'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

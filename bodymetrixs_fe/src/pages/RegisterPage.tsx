@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../stores/authStore';
+import { supabase } from '../lib/supabase';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
-  const { register } = useAuthStore();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,14 +23,25 @@ const RegisterPage = () => {
     setError('');
 
     try {
-      const success = await register(name, email, password);
-      if (success) {
+      const { error, data } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+          },
+        },
+      });
+
+      if (error) {
+        setError(error.message);
+      } else if (data.user) {
         navigate('/dashboard');
       } else {
-        setError('Registration failed');
+        setError('Registration failed: No user data returned');
       }
     } catch (err) {
-      setError('An error occurred during registration');
+      setError((err as Error).message || 'An unexpected error occurred during registration');
       console.error(err);
     } finally {
       setLoading(false);

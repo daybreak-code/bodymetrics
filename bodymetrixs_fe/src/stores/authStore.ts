@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { supabase } from '../lib/supabase';
 
 interface User {
   id: string;
@@ -11,53 +12,25 @@ interface User {
 interface AuthState {
   isAuthenticated: boolean;
   user: User | null;
-  login: (email: string, password: string) => Promise<boolean>;
-  register: (name: string, email: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  setCurrentUser: (user: User | null) => void;
+  logout: () => Promise<void>;
 }
 
-// Mock implementation for demo purposes
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       isAuthenticated: false,
       user: null,
-      login: async (email, password) => {
-        // This would normally connect to a backend API
-        // For demo, we'll simulate a successful login
-        if (email && password) {
-          set({
-            isAuthenticated: true,
-            user: {
-              id: '1',
-              name: 'Sarah',
-              email,
-              avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=150'
-            }
-          });
-          return true;
-        }
-        return false;
+      setCurrentUser: (user) => {
+        set({ isAuthenticated: !!user, user });
       },
-      register: async (name, email, password) => {
-        // This would normally connect to a backend API
-        // For demo, we'll simulate a successful registration
-        if (name && email && password) {
-          set({
-            isAuthenticated: true,
-            user: {
-              id: '1',
-              name,
-              email,
-              avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=150'
-            }
-          });
-          return true;
+      logout: async () => {
+        const { error } = await supabase.auth.signOut();
+        if (!error) {
+          set({ isAuthenticated: false, user: null });
+        } else {
+          console.error("Error logging out:", error);
         }
-        return false;
-      },
-      logout: () => {
-        set({ isAuthenticated: false, user: null });
       }
     }),
     {

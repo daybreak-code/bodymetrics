@@ -8,9 +8,47 @@ import DashboardPage from './pages/DashboardPage';
 import MeasurementsPage from './pages/MeasurementsPage';
 import DiseaseManagementPage from './pages/DiseaseManagementPage';
 import SettingsPage from './pages/SettingsPage';
+import { supabase } from './lib/supabase';
+import { useEffect, useState } from 'react';
 
 function App() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, setCurrentUser } = useAuthStore();
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        setCurrentUser({
+          id: session.user.id,
+          name: session.user.user_metadata?.name || '',
+          email: session.user.email || '',
+          avatar: session.user.user_metadata?.avatar_url || '',
+        });
+      } else {
+        setCurrentUser(null);
+      }
+      setLoading(false);
+    });
+
+    // Initial check in case onAuthStateChange doesn't fire immediately on load
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setCurrentUser({
+          id: session.user.id,
+          name: session.user.user_metadata?.name || '',
+          email: session.user.email || '',
+          avatar: session.user.user_metadata?.avatar_url || '',
+        });
+      } else {
+        setCurrentUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [setCurrentUser]);
 
   return (
     <Routes>
@@ -18,7 +56,7 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       
-      <Route element={<ProtectedRoute isAuthenticated={isAuthenticated} />}>
+      <Route element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading} />}>
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/measurements" element={<MeasurementsPage />} />
@@ -31,7 +69,10 @@ function App() {
 }
 
 // Protected route component to guard authenticated routes
-function ProtectedRoute({ isAuthenticated }: { isAuthenticated: boolean }) {
+function ProtectedRoute({ isAuthenticated, loading }: { isAuthenticated: boolean; loading: boolean }) {
+  if (loading) {
+    return <div>Loading authentication...</div>; // Or a more sophisticated loading indicator
+  }
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
