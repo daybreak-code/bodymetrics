@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import { supabase } from '../lib/supabase';
 
 interface User {
@@ -16,25 +15,17 @@ interface AuthState {
   logout: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      isAuthenticated: false,
-      user: null,
-      setCurrentUser: (user) => {
-        set({ isAuthenticated: !!user, user });
-      },
-      logout: async () => {
-        const { error } = await supabase.auth.signOut();
-        if (!error) {
-          set({ isAuthenticated: false, user: null });
-        } else {
-          console.error("Error logging out:", error);
-        }
-      }
-    }),
-    {
-      name: 'bodymetrics-auth'
+export const useAuthStore = create<AuthState>((set) => ({
+  isAuthenticated: false,
+  user: null,
+  setCurrentUser: (user) => {
+    set({ isAuthenticated: !!user, user });
+  },
+  logout: async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("Error logging out:", error);
     }
-  )
-);
+    // The onAuthStateChange listener in App.tsx will handle setting user to null
+  },
+}));

@@ -15,21 +15,44 @@ const LoginPage = () => {
     setError('');
 
     try {
-      const { error, data } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
         setError(error.message);
-      } else if (data.user) {
-        navigate('/dashboard');
-      } else {
-        setError('Login failed: No user data returned');
+        return;
       }
-    } catch (err) {
+
+      // 登录成功后，同步用户数据到业务表
+      if (data.user) {
+        try {
+          const response = await fetch('http://localhost:3000/api/auth/sync-user', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: data.user.email,
+              name: data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'User',
+              userId: data.user.id,
+            }),
+          });
+
+          if (!response.ok) {
+            console.error('User sync failed:', await response.text());
+            // 即使同步失败，仍然允许用户登录
+          }
+        } catch (syncError) {
+          console.error('User sync error:', syncError);
+          // 继续登录流程
+        }
+      }
+
+      navigate('/dashboard');
+    } catch (err: unknown) {
       setError((err as Error).message || 'An unexpected error occurred during login');
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -40,7 +63,7 @@ const LoginPage = () => {
     setError('');
     try {
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: provider,
+        provider,
         options: {
           redirectTo: window.location.origin + '/dashboard',
         },
@@ -48,11 +71,9 @@ const LoginPage = () => {
 
       if (error) {
         setError(error.message);
-        console.error('Error with OAuth login:', error.message);
       }
-    } catch (err) {
+    } catch (err: unknown) {
       setError((err as Error).message || 'An unexpected error occurred during OAuth login');
-      console.error(err);
     } finally {
       setLoading(false);
     }

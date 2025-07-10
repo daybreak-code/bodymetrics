@@ -8,40 +8,25 @@ import DashboardPage from './pages/DashboardPage';
 import MeasurementsPage from './pages/MeasurementsPage';
 import DiseaseManagementPage from './pages/DiseaseManagementPage';
 import SettingsPage from './pages/SettingsPage';
+import PaymentSuccessPage from './pages/PaymentSuccessPage';
+import CheckEmailPage from './pages/CheckEmailPage';
+import AuthCallbackPage from './pages/AuthCallbackPage';
 import { supabase } from './lib/supabase';
 import { useEffect, useState } from 'react';
 
 function App() {
-  const { isAuthenticated, setCurrentUser } = useAuthStore();
+  const { setCurrentUser } = useAuthStore();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        setCurrentUser({
-          id: session.user.id,
-          name: session.user.user_metadata?.name || '',
-          email: session.user.email || '',
-          avatar: session.user.user_metadata?.avatar_url || '',
-        });
-      } else {
-        setCurrentUser(null);
-      }
-      setLoading(false);
-    });
-
-    // Initial check in case onAuthStateChange doesn't fire immediately on load
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setCurrentUser({
-          id: session.user.id,
-          name: session.user.user_metadata?.name || '',
-          email: session.user.email || '',
-          avatar: session.user.user_metadata?.avatar_url || '',
-        });
-      } else {
-        setCurrentUser(null);
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user;
+      setCurrentUser(user ? {
+        id: user.id,
+        name: user.user_metadata?.name || user.email,
+        email: user.email || '',
+        avatar: user.user_metadata?.avatar_url,
+      } : null);
       setLoading(false);
     });
 
@@ -50,13 +35,26 @@ function App() {
     };
   }, [setCurrentUser]);
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div>Loading authentication...</div>
+      </div>
+    );
+  }
+
   return (
     <Routes>
+      {/* Public Routes */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/check-email" element={<CheckEmailPage />} />
+      <Route path="/auth/confirm" element={<AuthCallbackPage />} />
+      <Route path="/payment-success" element={<PaymentSuccessPage />} />
       
-      <Route element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading} />}>
+      {/* Protected Routes */}
+      <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/measurements" element={<MeasurementsPage />} />
@@ -68,11 +66,8 @@ function App() {
   );
 }
 
-// Protected route component to guard authenticated routes
-function ProtectedRoute({ isAuthenticated, loading }: { isAuthenticated: boolean; loading: boolean }) {
-  if (loading) {
-    return <div>Loading authentication...</div>; // Or a more sophisticated loading indicator
-  }
+function ProtectedRoute() {
+  const { isAuthenticated } = useAuthStore();
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }

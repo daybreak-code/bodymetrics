@@ -23,7 +23,8 @@ const RegisterPage = () => {
     setError('');
 
     try {
-      const { error, data } = await supabase.auth.signUp({
+      // 1. 首先在Supabase中注册用户
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -35,14 +36,41 @@ const RegisterPage = () => {
 
       if (error) {
         setError(error.message);
-      } else if (data.user) {
-        navigate('/dashboard');
-      } else {
-        setError('Registration failed: No user data returned');
+        return;
       }
+
+      // 2. 如果Supabase注册成功，调用后端API创建业务用户记录
+      if (data.user) {
+        try {
+          const response = await fetch('http://localhost:3000/api/auth/register', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email,
+              name,
+              userId: data.user.id,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.error('Backend registration error:', errorData);
+            // 即使后端创建失败，我们仍然继续，因为Supabase用户已经创建
+            // 用户可以在登录时重新创建业务记录
+          }
+        } catch (backendError) {
+          console.error('Backend API error:', backendError);
+          // 继续流程，不阻止用户注册
+        }
+      }
+
+      // 3. 导航到邮箱确认页面
+      navigate('/check-email');
+      
     } catch (err) {
       setError((err as Error).message || 'An unexpected error occurred during registration');
-      console.error(err);
     } finally {
       setLoading(false);
     }

@@ -6,6 +6,70 @@ import {
   Ruler, HeartPulse, ChevronRight, Activity
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useState, useEffect } from 'react';
+import SettingsPage from './SettingsPage';
+import { supabase } from '../lib/supabase';
+
+function useLatestPayment() {
+  const [payment, setPayment] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchPayment() {
+      setLoading(true);
+      setError(null);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError('未登录');
+        setLoading(false);
+        return;
+      }
+      const res = await fetch('/api/payment/user-latest', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        }
+      });
+      if (!res.ok) {
+        setError('未找到支付记录');
+        setLoading(false);
+        return;
+      }
+      const json = await res.json();
+      setPayment(json.payment);
+      setLoading(false);
+    }
+    fetchPayment();
+  }, []);
+
+  return { payment, loading, error };
+}
+
+async function handleCreemPay(productId: string) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    alert('请先登录');
+    return;
+  }
+  console.log(`handleCreemPay: ${productId}`)
+  const res = await fetch('/api/create-checkout', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({
+      product_id: productId,
+      success_url: window.location.origin + '/payment-success'
+    })
+  });
+  const data = await res.json();
+  if (data.checkout_url) {
+    window.location.href = data.checkout_url;
+  } else {
+    alert('支付会话创建失败: ' + (data.error || '未知错误'));
+  }
+}
 
 const DashboardPage = () => {
   const { user } = useAuthStore();
@@ -23,11 +87,37 @@ const DashboardPage = () => {
     leg: m.legCircumference || 0
   })).reverse();
 
+  const { payment, loading, error } = useLatestPayment();
+
   return (
     <div className="animate-fade-in">
+      <div className="mb-6 p-4 bg-blue-50 rounded-lg flex flex-col md:flex-row md:items-center md:justify-between">
+        <div>
+          <button
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+            onClick={() => handleCreemPay('prod_27UFKIrC71jFuMT72hB90v')}
+          >
+            去支付
+          </button>
+        </div>
+        <div className="mt-2 md:mt-0 md:ml-4">
+          {loading ? '支付状态加载中...' : error ? error : payment ? (
+            <span className="text-green-600">支付状态：{payment.status}，订单号：{payment.orderId || '无'}</span>
+          ) : '暂无支付记录'}
+        </div>
+      </div>
       <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
       <p className="text-neutral-600 mb-8">Welcome back, {user?.name}</p>
       
+      <div className="mb-6">
+        <button
+          onClick={() => handleCreemPay('prod_27UFKIrC71jFuMT72hB90v')}
+          className="px-4 py-2 font-semibold text-white bg-blue-500 rounded-lg shadow-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75"
+        >
+          Upgrade to Pro
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Recent Measurements */}
         <section className="card">
