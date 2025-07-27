@@ -50,7 +50,7 @@ const LoginPage = () => {
         }
       }
 
-      navigate('/dashboard');
+        navigate('/dashboard');
     } catch (err: unknown) {
       setError((err as Error).message || 'An unexpected error occurred during login');
     } finally {

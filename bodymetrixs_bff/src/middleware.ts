@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
 
 // 1. Specify protected and public routes
-const protectedRoutes = ['/api/measurements', '/api/diseases'];
+const protectedRoutes = ['/api/measurements', '/api/diseases', '/api/create-checkout', '/api/payment'];
 const publicRoutes = ['/api/auth/login', '/api/auth/register', '/api/auth/sync-user', '/api/swagger', '/api-docs'];
 
 export async function middleware(req: NextRequest) {
@@ -21,14 +20,10 @@ export async function middleware(req: NextRequest) {
     }
 
     try {
-      // 4. Verify the token using the Supabase JWT secret
-      const secret = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET as string);
-      const { payload } = await jwtVerify(token, secret);
-      
-      // 5. Add user ID (from 'sub' claim) to the request headers
+      // 4. For Edge Runtime, we'll just pass the token through
+      // The actual JWT verification will be done in the API routes
       const requestHeaders = new Headers(req.headers);
-      requestHeaders.set('x-user-id', payload.sub as string);
-      requestHeaders.set('x-user-email', payload.email as string);
+      requestHeaders.set('x-auth-token', token);
 
       return NextResponse.next({
         request: {
@@ -36,12 +31,12 @@ export async function middleware(req: NextRequest) {
         },
       });
     } catch (error) {
-      console.error('Token verification error:', error);
+      console.error('Middleware error:', error);
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
     }
   }
 
-  // 6. Allow public routes to pass through
+  // 5. Allow public routes to pass through
   return NextResponse.next();
 }
 

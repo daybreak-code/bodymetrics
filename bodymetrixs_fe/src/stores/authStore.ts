@@ -16,11 +16,11 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  isAuthenticated: false,
-  user: null,
+      isAuthenticated: false,
+      user: null,
   setCurrentUser: (user) => {
     set({ isAuthenticated: !!user, user });
-  },
+      },
   logout: async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {

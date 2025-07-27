@@ -1,15 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
-import { jwtVerify } from 'jose';
+import { supabase } from '@/app/lib/supabase';
 
 export async function GET(req: NextRequest) {
   try {
-    // 1. 校验 Supabase JWT
-    const authHeader = req.headers.get('authorization');
-    const token = authHeader?.split(' ')[1];
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!));
-    const userId = payload.sub as string;
+    // 1. 从请求头获取token（由中间件设置）
+    const token = req.headers.get('x-auth-token');
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // 使用Supabase客户端验证JWT
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    
+    if (error || !user) {
+      console.error('JWT verification failed:', error);
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+    
+    const userId = user.id;
+    console.log('JWT verification successful, userId:', userId);
 
     // 2. 查询最近一条支付记录
     try {

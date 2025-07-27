@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
-import { jwtVerify } from 'jose';
+import { supabase } from '@/app/lib/supabase';
 
 /**
  * @swagger
@@ -57,28 +57,36 @@ import { jwtVerify } from 'jose';
  */
 export async function POST(req: NextRequest) {
   try {
-    // 1. 校验 Supabase JWT
-    const authHeader = req.headers.get('authorization');
-    const token = authHeader?.split(' ')[1];
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // 1. 从请求头获取token（由中间件设置）
+    const token = req.headers.get('x-auth-token');
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
+    let userId: string;
     try {
-      const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!));
-      const userId = payload.sub as string;
-      console.log('JWT payload:', payload);
-      console.log('Extracted userId:', userId);
+      // 使用Supabase客户端验证JWT
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      
+      if (error || !user) {
+        console.error('JWT verification failed:', error);
+        return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+      }
+      
+      userId = user.id;
+      console.log('JWT verification successful, userId:', userId);
       
       // 验证用户是否存在
-      const user = await prisma.user.findUnique({
+      const userRecord = await prisma.user.findUnique({
         where: { id: userId }
       });
       
-      if (!user) {
+      if (!userRecord) {
         console.error('User not found in database:', userId);
         return NextResponse.json({ error: 'User not found' }, { status: 404 });
       }
       
-      console.log('User found:', user.id);
+      console.log('User found:', userRecord.id);
     } catch (jwtError) {
       console.error('JWT verification failed:', jwtError);
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
