@@ -58,10 +58,13 @@ import { supabase } from '@/app/lib/supabase';
 export async function POST(req: NextRequest) {
   try {
     // 1. 从请求头获取token（由中间件设置）
-    const token = req.headers.get('x-auth-token');
-    if (!token) {
+    const authHeader = req.headers.get('Authorization') || req.headers.get('x-auth-token');
+    if (!authHeader) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    
+    // 处理Bearer token格式
+    const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
     
     let userId: string;
     try {

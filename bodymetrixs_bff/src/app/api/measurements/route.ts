@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../lib/prisma';
+import { supabase } from '../../lib/supabase';
 
 /**
  * @swagger
@@ -45,16 +46,60 @@ import { prisma } from '../../lib/prisma';
  *         description: 未授权
  */
 export async function GET(req: NextRequest) {
-  const userId = req.headers.get('x-user-id') as string;
-  const measurements = await prisma.measurement.findMany({ where: { userId } });
-  return NextResponse.json(measurements);
+  // 从请求头获取token
+  const authHeader = req.headers.get('Authorization') || req.headers.get('x-auth-token');
+  if (!authHeader) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  
+  // 处理Bearer token格式
+  const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
+  
+  try {
+    // 使用Supabase客户端验证JWT
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    
+    if (error || !user) {
+      console.error('JWT verification failed:', error);
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+    
+    const userId = user.id;
+    const measurements = await prisma.measurement.findMany({ where: { userId } });
+    return NextResponse.json(measurements);
+  } catch (error) {
+    console.error('Error fetching measurements:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const userId = req.headers.get('x-user-id') as string;
-  const data = await req.json();
-  const measurement = await prisma.measurement.create({
-    data: { ...data, userId },
-  });
-  return NextResponse.json(measurement, { status: 201 });
+  // 从请求头获取token
+  const authHeader = req.headers.get('Authorization') || req.headers.get('x-auth-token');
+  if (!authHeader) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  
+  // 处理Bearer token格式
+  const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
+  
+  try {
+    // 使用Supabase客户端验证JWT
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    
+    if (error || !user) {
+      console.error('JWT verification failed:', error);
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+    
+    const userId = user.id;
+    const data = await req.json();
+    const measurement = await prisma.measurement.create({
+      data: { ...data, userId },
+    });
+    return NextResponse.json(measurement, { status: 201 });
+  } catch (error) {
+    console.error('Error creating measurement:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
 } 
