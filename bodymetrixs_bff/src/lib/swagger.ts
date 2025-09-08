@@ -44,11 +44,6 @@ const apiConfig = {
         scheme: 'bearer',
         bearerFormat: 'JWT',
       },
-      UserIdHeader: {
-        type: 'apiKey',
-        in: 'header',
-        name: 'x-user-id',
-      },
     },
     schemas: {
       User: {
@@ -111,8 +106,94 @@ const apiConfig = {
 };
 
 export const getApiDocs = () => {
-  return createSwaggerSpec({
-    definition: apiConfig,
-    apiFolder: 'src/app/api',
-  });
+  try {
+    return createSwaggerSpec({
+      definition: apiConfig,
+      apiFolder: 'src/app/api',
+    });
+  } catch (error) {
+    console.error('Error creating Swagger spec:', error);
+    // 返回一个基本的OpenAPI规范作为fallback
+    return {
+      ...apiConfig,
+      paths: {
+        '/api/auth/login': {
+          post: {
+            tags: ['Authentication'],
+            summary: '用户登录',
+            description: '用户登录接口',
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      email: { type: 'string', format: 'email' },
+                      password: { type: 'string' },
+                    },
+                    required: ['email', 'password'],
+                  },
+                },
+              },
+            },
+            responses: {
+              200: {
+                description: '登录成功',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        token: { type: 'string' },
+                        user: { $ref: '#/components/schemas/User' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        '/api/create-checkout': {
+          post: {
+            tags: ['Payments'],
+            summary: '创建支付会话',
+            description: '创建Creem.io支付会话',
+            security: [{ BearerAuth: [] }],
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      product_id: { type: 'string' },
+                      success_url: { type: 'string', format: 'uri' },
+                    },
+                    required: ['product_id', 'success_url'],
+                  },
+                },
+              },
+            },
+            responses: {
+              200: {
+                description: '成功创建支付会话',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        checkout_url: { type: 'string', format: 'uri' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+  }
 }; 

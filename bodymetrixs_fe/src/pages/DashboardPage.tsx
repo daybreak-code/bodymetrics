@@ -8,7 +8,8 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useState, useEffect } from 'react';
 import SettingsPage from './SettingsPage';
-import { supabase } from '../lib/supabase';
+import apiClient from '../lib/apiClient';
+import { getPaymentSuccessUrl, debugUrls } from '../utils/urlUtils';
 
 function useLatestPayment() {
   const [payment, setPayment] = useState(null);
@@ -19,25 +20,21 @@ function useLatestPayment() {
     async function fetchPayment() {
       setLoading(true);
       setError(null);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setError('未登录');
-        setLoading(false);
-        return;
-      }
-      const res = await fetch('/api/payment/user-latest', {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+      
+      try {
+        const res = await apiClient.get('/payment/user-latest');
+        setPayment(res.data.payment);
+      } catch (err: any) {
+        if (err.response?.status === 401) {
+          setError('请先登录');
+        } else if (err.response?.status === 404) {
+          setError('未找到支付记录');
+        } else {
+          setError('获取支付记录失败');
         }
-      });
-      if (!res.ok) {
-        setError('未找到支付记录');
+      } finally {
         setLoading(false);
-        return;
       }
-      const json = await res.json();
-      setPayment(json.payment);
-      setLoading(false);
     }
     fetchPayment();
   }, []);
@@ -46,28 +43,60 @@ function useLatestPayment() {
 }
 
 async function handleCreemPay(productId: string) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
-    alert('请先登录');
-    return;
-  }
-  console.log(`handleCreemPay: ${productId}`)
-  const res = await fetch('/api/create-checkout', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.access_token}`,
-    },
-    body: JSON.stringify({
+  try {
+    console.log(`handleCreemPay: ${productId}`);
+    
+    // 显示加载状态
+    const loadingMessage = '正在创建支付会话...';
+    console.log(loadingMessage);
+    
+    // 调试 URL 信息
+    debugUrls();
+    
+    // 使用工具函数构建 success_url
+    const successUrl = getPaymentSuccessUrl();
+    console.log('构建的 success_url:', successUrl);
+    
+    const res = await apiClient.post('/create-checkout', {
       product_id: productId,
-      success_url: window.location.origin + '/payment-success'
-    })
-  });
-  const data = await res.json();
-  if (data.checkout_url) {
-    window.location.href = data.checkout_url;
-  } else {
-    alert('支付会话创建失败: ' + (data.error || '未知错误'));
+      success_url: successUrl
+    });
+    
+    if (res.data.checkout_url) {
+      console.log('支付会话创建成功，跳转到支付页面:', res.data.checkout_url);
+      window.location.href = res.data.checkout_url;
+    } else {
+      const errorMsg = '支付会话创建失败: ' + (res.data.error || '未知错误');
+      console.error(errorMsg, res.data);
+      alert(errorMsg);
+    }
+  } catch (err: any) {
+    console.error('支付会话创建失败:', err);
+    
+    let errorMessage = '支付会话创建失败';
+    
+    if (err.response?.status === 401) {
+      errorMessage = '请先登录，登录状态已过期';
+    } else if (err.response?.status === 400) {
+      errorMessage = '请求参数错误: ' + (err.response.data?.error || '参数不完整');
+    } else if (err.response?.status === 500) {
+      errorMessage = '服务器错误: ' + (err.response.data?.error || '内部服务错误');
+    } else if (err.code === 'NETWORK_ERROR' || err.message?.includes('Network Error')) {
+      errorMessage = '网络连接失败，请检查网络连接';
+    } else if (err.response?.data?.details) {
+      errorMessage = '支付服务错误: ' + JSON.stringify(err.response.data.details);
+    } else {
+      errorMessage = '支付会话创建失败: ' + (err.response?.data?.error || err.message || '未知错误');
+    }
+    
+    console.error('详细错误信息:', {
+      status: err.response?.status,
+      data: err.response?.data,
+      message: err.message,
+      code: err.code
+    });
+    
+    alert(errorMessage);
   }
 }
 

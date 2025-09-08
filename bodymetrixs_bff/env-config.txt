@@ -1,0 +1,20 @@
+# 请将以下内容复制到项目根目录的 .env 文件中
+
+# Database Configuration for Prisma
+DATABASE_URL="postgresql://postgres.vpstrwdjvsrlzgsippqw:YOUR_ACTUAL_PASSWORD@aws-0-us-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&pool_timeout=20"
+
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL="https://vpstrwdjvsrlzgsippqw.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZwc3Ryd2RqdnNybHpnc2lwcHF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTU2MjgzMywiZXhwIjoyMDY1MTM4ODMzfQ.3apg-azBWfxz1K55CHlUTq9j8AxJvKx6OjzUbFrZDMs"
+
+# Creem.io Payment API
+CREEM_API_KEY="your_creem_api_key_here"
+
+# Environment
+NODE_ENV="development"
+
+# 重要提示：
+# 1. 将 YOUR_ACTUAL_PASSWORD 替换为你的实际数据库密码
+# 2. 将 your_creem_api_key_here 替换为你的 Creem.io API 密钥
+# 3. 确保 .env 文件在项目根目录（与 package.json 同级）
+# 4. 重启开发服务器以使环境变量生效

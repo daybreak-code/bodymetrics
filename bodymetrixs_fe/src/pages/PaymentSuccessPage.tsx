@@ -1,7 +1,7 @@
 import { useSearchParams } from 'react-router-dom';
 import { CheckCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import apiClient from '../lib/apiClient';
 
 function useLatestPayment() {
   const [payment, setPayment] = useState(null);
@@ -12,25 +12,21 @@ function useLatestPayment() {
     async function fetchPayment() {
       setLoading(true);
       setError(null);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setError('未登录');
-        setLoading(false);
-        return;
-      }
-      const res = await fetch('/api/payment/user-latest', {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+      
+      try {
+        const res = await apiClient.get('/payment/user-latest');
+        setPayment(res.data.payment);
+      } catch (err: any) {
+        if (err.response?.status === 401) {
+          setError('请先登录');
+        } else if (err.response?.status === 404) {
+          setError('未找到支付记录');
+        } else {
+          setError('获取支付记录失败');
         }
-      });
-      if (!res.ok) {
-        setError('未找到支付记录');
+      } finally {
         setLoading(false);
-        return;
       }
-      const json = await res.json();
-      setPayment(json.payment);
-      setLoading(false);
     }
     fetchPayment();
   }, []);

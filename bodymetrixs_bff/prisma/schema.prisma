@@ -1,6 +1,8 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
-  provider        = "prisma-client-js"
-  output          = "../src/generated/prisma"
+  provider = "prisma-client-js"
   previewFeatures = ["multiSchema"]
 }
 
@@ -11,74 +13,103 @@ datasource db {
 }
 
 model User {
-  id           String        @id @db.Uuid
-  name         String
-  email        String        @unique
-  password     String
-  avatar       String?
-  diseases     Disease[]
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
   measurements Measurement[]
-  payments     Payment[]
+  diseases    Disease[]
+  payments    Payment[]
 
   @@schema("public")
 }
 
 model Measurement {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  date               DateTime @db.Date
-  weight             Float?
-  height             Float?
-  armCircumference   Float?
-  legCircumference   Float?
-  waistCircumference Float?
-  chestCircumference Float?
-  hipCircumference   Float?
-  neckCircumference  Float?
-  bmi                Float?
-  userId             String   @db.Uuid
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                  String   @id @default(cuid())
+  userId              String
+  date                DateTime
+  weight              Float?
+  height              Float?
+  waistCircumference  Float?
+  hipCircumference    Float?
+  armCircumference    Float?
+  legCircumference    Float?
+  bodyFatPercentage   Float?
+  muscleMass          Float?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([date])
   @@schema("public")
 }
 
 model Disease {
-  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id          String   @id @default(cuid())
+  userId      String
   name        String
-  symptoms    String
-  onsetDate   DateTime     @db.Date
-  isPrivate   Boolean      @default(false)
-  userId      String       @db.Uuid
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  description String?
+  diagnosisDate DateTime?
+  status      String   @default("active") // active, resolved, chronic
   medications Medication[]
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([status])
   @@schema("public")
 }
 
 model Medication {
-  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name         String
-  dosage       String
-  reminderTime String?
-  diseaseId    String  @db.Uuid
-  disease      Disease @relation(fields: [diseaseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id          String   @id @default(cuid())
+  diseaseId   String
+  name        String
+  dosage      String?
+  frequency  String?
+  startDate  DateTime?
+  endDate    DateTime?
+  status      String   @default("active") // active, discontinued, completed
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  disease Disease @relation(fields: [diseaseId], references: [id], onDelete: Cascade)
 
   @@index([diseaseId])
+  @@index([status])
   @@schema("public")
 }
 
 model Payment {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId     String   @db.Uuid
+  id         String   @id @default(cuid())
+  userId     String
   checkoutId String   @unique
   orderId    String?
   productId  String
-  status     String
+  status     String   @default("pending") // pending, completed, failed, cancelled
+  amount     Float?
+  currency   String   @default("USD")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  user       User     @relation(fields: [userId], references: [id])
 
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
   @@schema("public")
 }
 
@@ -205,6 +236,7 @@ model mfa_factors {
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model one_time_tokens {
   id         String              @id @db.Uuid

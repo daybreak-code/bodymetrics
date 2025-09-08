@@ -60,11 +60,13 @@ export async function POST(req: NextRequest) {
     // 1. 从请求头获取token（由中间件设置）
     const authHeader = req.headers.get('Authorization') || req.headers.get('x-auth-token');
     if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      console.error('No authorization header found');
+      return NextResponse.json({ error: 'Unauthorized - No token provided' }, { status: 401 });
     }
     
     // 处理Bearer token格式
     const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
+    console.log('Token received:', token.substring(0, 20) + '...');
     
     let userId: string;
     try {
@@ -73,7 +75,7 @@ export async function POST(req: NextRequest) {
       
       if (error || !user) {
         console.error('JWT verification failed:', error);
-        return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+        return NextResponse.json({ error: 'Invalid token - Authentication failed' }, { status: 401 });
       }
       
       userId = user.id;
@@ -86,32 +88,47 @@ export async function POST(req: NextRequest) {
       
       if (!userRecord) {
         console.error('User not found in database:', userId);
-        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+        return NextResponse.json({ error: 'User not found in database' }, { status: 404 });
       }
       
       console.log('User found:', userRecord.id);
     } catch (jwtError) {
       console.error('JWT verification failed:', jwtError);
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid token - JWT processing error' }, { status: 401 });
     }
 
     // 2. 获取参数
-    const { product_id, success_url } = await req.json();
+    const body = await req.json();
+    console.log('Request body:', body);
+    
+    const { product_id, success_url } = body;
     if (!product_id || !success_url) {
-      return NextResponse.json({ error: 'product_id and success_url are required' }, { status: 400 });
+      console.error('Missing required parameters:', { product_id, success_url });
+      return NextResponse.json({ 
+        error: 'Missing required parameters', 
+        details: { product_id: !!product_id, success_url: !!success_url }
+      }, { status: 400 });
     }
 
     const apiKey = process.env.CREEM_API_KEY;
     if (!apiKey) {
       console.error('CREEM_API_KEY is not set in environment variables');
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+      return NextResponse.json({ 
+        error: 'Server configuration error - Payment API key not configured',
+        details: 'Please check CREEM_API_KEY environment variable'
+      }, { status: 500 });
     }
+
+    console.log('Using Creem API key:', apiKey.substring(0, 10) + '...');
 
     // 3. 创建 Creem 会话
     const isTestMode = process.env.NODE_ENV === 'development';
     const creemApiUrl = isTestMode 
       ? 'https://test-api.creem.io/v1/checkouts' 
       : 'https://api.creem.io/v1/checkouts';
+
+    console.log('Creem API URL:', creemApiUrl);
+    console.log('Request payload:', { product_id, success_url });
 
     const response = await fetch(creemApiUrl, {
       method: 'POST',
@@ -126,14 +143,31 @@ export async function POST(req: NextRequest) {
       }),
     });
 
+    console.log('Creem API response status:', response.status);
+    console.log('Creem API response headers:', Object.fromEntries(response.headers.entries()));
+
     if (!response.ok) {
-      const errorBody = await response.json();
-      console.error('Creem API error:', errorBody);
-      return NextResponse.json({ error: 'Failed to create checkout session', details: errorBody }, { status: response.status });
+      const errorBody = await response.text();
+      console.error('Creem API error response:', errorBody);
+      
+      let errorDetails;
+      try {
+        errorDetails = JSON.parse(errorBody);
+      } catch (e) {
+        errorDetails = { raw_error: errorBody };
+      }
+      
+      return NextResponse.json({ 
+        error: 'Failed to create checkout session', 
+        details: errorDetails,
+        status_code: response.status
+      }, { status: response.status });
     }
 
     const checkoutSession = await response.json();
-    // 4. 记录本地 Payment (临时跳过，直到数据库迁移完成)
+    console.log('Creem API success response:', checkoutSession);
+    
+    // 4. 记录本地 Payment
     try {
       await prisma.payment.create({
         data: {
@@ -143,13 +177,18 @@ export async function POST(req: NextRequest) {
           status: 'pending',
         }
       });
+      console.log('Payment record created successfully');
     } catch (error) {
       console.warn('Payment table not available, skipping local record:', error);
       // 继续执行，不影响支付流程
     }
+    
     return NextResponse.json({ checkout_url: checkoutSession.url });
   } catch (error) {
     console.error('Error creating checkout session:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Internal Server Error', 
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 } 
